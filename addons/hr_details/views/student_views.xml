@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- ===================== Tree/List View ===================== -->
+    <record id="view_student_tree" model="ir.ui.view">
+        <field name="name">student.model.list</field>
+        <field name="model">student.model</field>
+        <field name="arch" type="xml">
+        <!-- <field name="view_mode">list</field> -->
+            <list string="Students Details">
+                <field name="name"/>
+                <field name="class_feild"/>
+                <field name="department_id"/>
+                <field name="age"/>
+                <field name="phone"/>
+                <field name="school"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ===================== Form View ===================== -->
+    <record id="view_student_form" model="ir.ui.view">
+        <field name="name">student.model.form</field>
+        <field name="model">student.model</field>
+        <field name="arch" type="xml">
+            <form string="Add A Student">
+                <sheet>
+                    <group>
+                        <field name="image_1920" widget="image" class="oe_avatar" />
+                    </group>
+
+                    <group>
+                        <field name="name"/>
+                    </group>
+                    <group>
+                        <field name="class_feild"/>
+                    </group>
+                    <group>
+                        <field name="department_id"/>
+                    </group>
+                    <group>
+                        <field name="school"/>
+                    </group>
+                    <group>
+                        <field name="age"/>
+                    </group>
+                    <group>
+                        <field name="phone"/>
+                    </group>
+                    
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+<record id="view_student_kanban" model="ir.ui.view">
+    <field name="name">student_model.kanban</field>
+    <field name="model">student.model</field>
+    <field name="arch" type="xml">
+        <kanban class="o_kanban_example">
+            <field name="name"/>
+            <field name="class_feild"/>
+            <field name="age"/>
+            <field name="school"/>
+            <field name="phone"/>
+            <field name="image_1920"/>
+
+            <templates>
+                <t t-name="kanban-box">
+                    <div class="oe_kanban_global_click o_kanban_card"
+                         style="padding:10px; border:1px solid #ddd; border-radius:10px;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1); background:#fff; position:relative;">
+                        
+                        <!-- Image -->
+                        <div class="o_kanban_image" style="text-align:center; margin-bottom:10px;">
+                            <img class="o_kanban_image_inner_pic"
+                                 t-att-src="kanban_image('student.model', 'image_1920', record.id.raw_value)"
+                                 alt="Student Image"
+                                 style="width:90px; height:90px; object-fit:cover;
+                                        border-radius:50%; border:2px solid #ccc;"/>
+                        </div>
+
+                        <!-- Student Details -->
+                        <div class="o_kanban_details" style="text-align:center;">
+                            <strong style="font-size:16px;"><t t-esc="record.name.value"/></strong><br/>
+                            <span>Class: <t t-esc="record.class_feild.value"/></span><br/>
+                            <span>Age: <t t-esc="record.age.value"/></span><br/>
+                            <span>School: <t t-esc="record.school.value"/></span><br/>
+                            <span>Phone: <t t-esc="record.phone.value"/></span>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div style="position:absolute; top:8px; right:8px;">
+                            <!-- Edit Button -->
+                            <a type="edit"
+                               class="btn btn-sm btn-primary o-kanban-button-edit"
+                               title="Edit"
+                               style="padding:2px 6px; border-radius:4px;">
+                                <i class="fa fa-pencil"/>
+                            </a>
+                            <!-- Delete Button -->
+                            <a type="delete"
+                               class="btn btn-sm btn-danger o-kanban-button-delete"
+                               title="Delete"
+                               style="padding:2px 6px; margin-left:4px; border-radius:4px;">
+                                <i class="fa fa-trash"/>
+                            </a>
+                        </div>
+                    </div>
+                </t>
+            </templates>
+        </kanban>
+    </field>
+</record>
+
+    <!-- ===================== Action (Linking Views) ===================== -->
+    <record id="action_student" model="ir.actions.act_window">
+        <field name="name">Students</field>
+        <field name="res_model">student.model</field>
+        <field name="view_mode">list,form,kanban</field>
+    </record>
+
+    <!-- ===================== Menus ===================== -->
+    <menuitem id="menu_student_root" name="Student Management"/>
+    <menuitem id="menu_student_sub" name="Students"
+              parent="menu_student_root"
+              action="action_student"/>
+</odoo>

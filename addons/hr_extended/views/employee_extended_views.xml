@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+<record id="view_employee_form_extended" model="ir.ui.view">
+    <field name="name">hr.employee.form.extended</field>
+    <field name="model">hr.employee</field>
+    <field name="inherit_id" ref="hr.view_employee_form"/>
+    <field name="arch" type="xml">
+        <xpath expr="//field[@name='work_phone']" position="after">
+            <group string="Experience Details">
+                <field name="joining_date" required="0"/>
+                <field name="experience" readonly="0"/>
+            </group>
+        </xpath>
+    </field>
+</record>
+
+</odoo>
