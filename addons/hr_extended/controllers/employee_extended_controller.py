@@ -44,8 +44,8 @@ class EmployeeController(http.Controller):
 load_dotenv()
 JWT_SECRET = os.getenv("JWT_SECRET_KEY", "default_secret")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-JWT_EXPIRATION_MINUTES = int(os.getenv("JWT_EXPIRATION_MINUTES", "60"))
-REFRESH_EXP = int(os.getenv("REFRESH_EXP", "1440"))  # Default 24 hours 
+JWT_EXPIRATION_MINUTES = float(os.getenv("JWT_EXPIRATION_MINUTES", "0.35"))
+REFRESH_EXP = (os.getenv("REFRESH_EXP", "1440"))  # Default 24 hours 
 
 class AuthController(http.Controller):
 
@@ -117,12 +117,11 @@ class AuthController(http.Controller):
                 return {"status": "error", "message": "Invalid token payload: uid missing"}
 
             # Generate new tokens
-            new_access, new_refresh = generate_tokens(user_id)
+            new_access = generate_tokens(user_id)
 
             return {
                 "status": "success",
-                "access_token": new_access,
-                "refresh_token": new_refresh
+                "access_token": new_access
             }
 
         except jwt.ExpiredSignatureError:
@@ -139,16 +138,9 @@ def generate_tokens(user_id, login=None):
         'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=JWT_EXPIRATION_MINUTES)
     }
 
-    refresh_payload = {
-        'uid': user_id,
-        'type': 'refresh',
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=REFRESH_EXP)
-    }
-
     access_token = jwt.encode(access_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    refresh_token = jwt.encode(refresh_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-    return access_token, refresh_token
+    return access_token
 
 # load_dotenv()
 # JWT_SECRET = os.getenv("JWT_SECRET_KEY")
