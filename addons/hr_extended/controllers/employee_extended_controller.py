@@ -2,65 +2,147 @@ from odoo import http
 from odoo.http import request
 import jwt
 import datetime
-import secrets
 from dotenv import load_dotenv
 import os
-from odoo.service import model,db
 from .auth_utils import token_required
+import json
 
 class EmployeeController(http.Controller):
-    @http.route('/api/employee', type='json', auth='user', methods=['POST'], csrf=False)
+    @http.route('/api/employee/create', type='http', auth='user', methods=['POST'], csrf=False)
     @token_required
     def create_employee(self, **kwargs):
         try:
-            # Extract the data from request
-            data = kwargs or request.httprequest.get_json(force=True)
+            # Parse raw JSON body
+            raw_data = request.httprequest.data
+            if not raw_data:
+                return  http.Response(
+                        response=json.dumps({
+                            'status': 'error',
+                            'message': 'Missing request body'
+                        }),
+                        status=400,
+                        content_type='application/json'
+                    )
 
-            # Check mandatory fields
-            if not data.get('name') or not data.get('joining_date'):
-                return {'status': 'error', 'message': 'Name and Joining Date are mandatory'}
+            data = json.loads(raw_data.decode('utf-8'))
+            name = data.get('name')
+            job_title = data.get('job_title')
+            department_id = data.get('department_id')
+            joining_date = data.get('joining_date')
 
-            # Create employee
+            if not name:
+                return  http.Response(
+                        response=json.dumps({
+                            'status': 'error',
+                            'message': 'Employee name is required'
+                        }),
+                        status=400,
+                        content_type='application/json'
+                    )
+            if not job_title:
+                return  http.Response(
+                        response=json.dumps({
+                            'status': 'error',
+                            'message': 'Job title is required'
+                        }),
+                        status=400,
+                        content_type='application/json'
+                    )
+
             employee = request.env['hr.employee'].sudo().create({
-                'name': data.get('name'),
-                'job_title': data.get('job_title'),
-                'department_id': data.get('department_id'),
-                'joining_date': data.get('joining_date'),
+                'name': name,
+                'job_title': job_title,
+                'department_id': department_id,
+                'joining_date': joining_date,
             })
 
-            return {
-                'status': 'success',
-                'message': f'Employee {employee.name} created successfully',
-                'employee_id': employee.id
-            }
+            return  http.Response(
+                    response=json.dumps({
+                        'status': 'success',
+                        'employee_id': employee.id
+                    }),
+                    status=201,
+                    content_type='application/json'
+                )
+        except Exception as e:
+            return  http.Response(
+                    response=json.dumps({
+                        'status': 'error',
+                        'message': str(e)
+                    }),
+                    status=500,
+                    content_type='application/json'
+                )
+        
+    @http.route('/api/employee/list', type='http', auth='user', methods=['GET'], csrf=False)
+    @token_required
+    def get_employee_list(self, **kwargs):
+        try:
+            employees = request.env['hr.employee'].sudo().search([])
+            employee_list = []
+            for emp in employees:
+                employee_list.append({
+                    'id': emp.id,
+                    'name': emp.name,
+                    'job_title': emp.job_title,
+                    'department_id': emp.department_id.id,
+                    'joining_date': emp.joining_date.isoformat()
+                })
+
+            return  http.Response(
+                    response=json.dumps({
+                        'status': 'success',
+                        'employees': employee_list
+                    }),
+                    status=200,
+                    content_type='application/json'
+                )
+            
 
         except Exception as e:
-            return {
-                'status': 'error',
-                'message': str(e)
-            }
+            return  http.Response(
+                    response=json.dumps({
+                        'status': 'error',
+                        'message': str(e)
+                    }),
+                    status=500,
+                    content_type='application/json'
+                )
+
 
 
 load_dotenv()
 JWT_SECRET = os.getenv("JWT_SECRET_KEY", "default_secret")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRATION_MINUTES = float(os.getenv("JWT_EXPIRATION_MINUTES", "0.35"))
-REFRESH_EXP = (os.getenv("REFRESH_EXP", "1440"))  # Default 24 hours 
+REFRESH_EXP = int(os.getenv("REFRESH_EXP", "1440"))  # Default 24 hours 
 
 class AuthController(http.Controller):
 
-    @http.route('/api/login', type='json', auth='none', methods=['POST'], csrf=False)
+    @http.route('/api/login', type='http', auth='none', methods=['POST'], csrf=False)
     def api_login(self, **kwargs):
         try:
-            # Parse data from JSON body or kwargs
-            data = kwargs or request.httprequest.get_json(force=True)
+            # Parse raw JSON body
+            raw_data = request.httprequest.data
+            if not raw_data:
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Missing request body'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=400
+                )
+
+            data = json.loads(raw_data.decode('utf-8'))
             username = data.get('username')
             password = data.get('password')
 
+            # Validate input
             if not username or not password:
-                return {'status': 'error', 'message': 'username and password are required'}
-
-            # Get database name from current session
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Username and password required'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=400
+                )
+            
             dbname = request.session.db
 
             uid = request.session.authenticate(dbname, {
@@ -69,138 +151,129 @@ class AuthController(http.Controller):
                 "type": "password"
             })
 
-
             if not uid:
-                return {'status': 'error', 'message': 'Invalid credentials'}
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Invalid credentials'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=401
+                )
 
-            # Generate JWT token
             access_payload = {
-                'user_id': uid,
+                'userid': uid,
                 'login': username,
                 'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=JWT_EXPIRATION_MINUTES)
             }
-            
+            access_token = jwt.encode(access_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
             refresh_payload = {
-                'uid': uid,
+                'userid': uid,
+                'login': username,
                 'type': 'refresh',
                 'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=REFRESH_EXP)
             }
 
-            access_token = jwt.encode(access_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
             refresh_token = jwt.encode(refresh_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-            # request.env['res.users'].sudo().browse(uid).write({'refresh_token': refresh_token})
-
-            return {
-                'status': 'success',
-                'access_token': access_token,
-                'refresh_token': refresh_token,
-                'user_id': uid,
-                'expires_in': f"{JWT_EXPIRATION_MINUTES} minutes"
-            }
+        
+            return request.make_response(
+                json.dumps({
+                    'status': 'success',
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'user_id': uid,
+                    'access_expires_in': f"{JWT_EXPIRATION_MINUTES} minutes",
+                    'referesh_expires_in': f"{REFRESH_EXP} minutes"
+}),
+                headers=[('Content-Type', 'application/json')],
+                status=200
+            )
 
         except Exception as e:
-            return {'status': 'error', 'message': str(e)}
+            return request.make_response(
+                json.dumps({'status': 'error', 'message': str(e)}),
+                headers=[('Content-Type', 'application/json')],
+                status=500
+            )
+
         
-        
-    @http.route('/api/token/refresh', type='json', auth='none', methods=['POST'], csrf=False)
+    @http.route('/api/token/refresh', type='http', auth='none', methods=['POST'], csrf=False)
     def refresh_token(self, **kwargs):
-        data = kwargs or request.httprequest.get_json(force=True)
-        refresh_token = data.get('refresh_token')
-        if not refresh_token:
-            return {"status": "error", "message": "Refresh token missing"}
-
         try:
-            payload = jwt.decode(refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            user_id = payload.get('uid')  
-            if not user_id:
-                return {"status": "error", "message": "Invalid token payload: uid missing"}
+            
+            raw_data = request.httprequest.data
+            if not raw_data:
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Missing request body'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=400
+                )
 
-            # Generate new tokens
-            new_access = generate_tokens(user_id)
+            data = json.loads(raw_data.decode('utf-8'))
+            refresh_token = data.get('refresh_token')
 
-            return {
-                "status": "success",
-                "access_token": new_access
+            if not refresh_token:
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Refresh token missing'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=400
+                )
+
+            # Decode and verify refresh token
+            try:
+                payload = jwt.decode(refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            except jwt.ExpiredSignatureError:
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Refresh token has expired'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=401
+                )
+            except jwt.InvalidTokenError:
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Invalid refresh token'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=401
+                )
+
+            # Ensure this is a refresh token
+            if payload.get('type') != 'refresh':
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Token is not a refresh token'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=401
+                )
+
+            uid = payload.get('userid')
+            username = payload.get('login')
+
+            if not uid or not username:
+                return request.make_response(
+                    json.dumps({'status': 'error', 'message': 'Invalid token payload'}),
+                    headers=[('Content-Type', 'application/json')],
+                    status=401
+                )
+
+            # Generate new access token
+            access_payload = {
+                'userid': uid,
+                'login': username,
+                'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=JWT_EXPIRATION_MINUTES)
             }
+            new_access_token = jwt.encode(access_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-        except jwt.ExpiredSignatureError:
-            return {"status": "error", "message": "Refresh token has expired"}
-        except jwt.InvalidTokenError:
-            return {"status": "error", "message": "Invalid refresh token"}
+            # Return tokens
+            return request.make_response(
+                json.dumps({
+                    'status': 'success',
+                    'access_token': new_access_token,
+                    'access_expires_in': f"{JWT_EXPIRATION_MINUTES} minutes",
+                }),
+                headers=[('Content-Type', 'application/json')],
+                status=200
+            )
 
-
-def generate_tokens(user_id, login=None):
-    
-    access_payload = {
-        'user_id': user_id,
-        'login': login,
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=JWT_EXPIRATION_MINUTES)
-    }
-
-    access_token = jwt.encode(access_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-    return access_token
-
-# load_dotenv()
-# JWT_SECRET = os.getenv("JWT_SECRET_KEY")
-# JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
-# JWT_EXPIRATION_MINUTES = int(os.getenv("JWT_EXPIRATION_MINUTES", "60"))
-
-
-# class AuthController(http.Controller):
-
-#     @http.route('/api/login', type='json', auth='none', methods=['POST'], csrf=False)
-#     def api_login(self, **kwargs):
-
-#         try:
-#             # Extract credentials
-#             # data = request.get_json_data() if hasattr(request, 'get_json_data') else request.httprequest.get_json(force=True)
-
-#             # username = data.get('username')
-#             # password = data.get('password')
-
-#             # Handle both normal JSON and JSON-RPC body
-#             data = {}
-#             # First priority: JSON body sent via kwargs
-#             if kwargs:
-#                 data = kwargs
-#             else:
-#                 # If kwargs empty, read directly from HTTP body
-#                 try:
-#                     data = request.httprequest.get_json(force=True)
-#                 except Exception:
-#                     data = {}
-
-#             username = data.get('username')
-#             password = data.get('password')
-
-
-#             if not username or not password:
-#                 return {'status': 'error', 'message': 'username and password are required'}
-
-#             # Authenticate using Odoo's internal method
-#             dbname = request.session.db
-#             userid = model.dispatch_rpc('res.users', 'authenticate', [dbname, username, password, {}])
-
-
-#             if not userid:
-#                 return {'status': 'error', 'message': 'Invalid credentials'}
-
-#             # Generate JWT token
-#             payload = {
-#                 'userid': userid,
-#                 'login': username,
-#                 'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=JWT_EXPIRATION_MINUTES)
-#             }
-#             access_token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-#             return {
-#                 'status': 'success',
-#                 'access_token': access_token,
-#                 'user_id': userid,
-#                 'expires_in': f"{JWT_EXPIRATION_MINUTES} minutes"
-#             }
-
-#         except Exception as e:
-#             return {'status': 'error', 'message': str(e)}
+        except Exception as e:
+            return request.make_response(
+                json.dumps({'status': 'error', 'message': str(e)}),
+                headers=[('Content-Type', 'application/json')],
+                status=500
+            )
