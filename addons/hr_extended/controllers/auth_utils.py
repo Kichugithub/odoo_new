@@ -3,6 +3,8 @@ import os
 from functools import wraps
 from odoo.http import request
 from dotenv import load_dotenv
+from odoo import http
+import json
 
 load_dotenv()
 JWT_SECRET = os.getenv("JWT_SECRET_KEY", "default_secret")
@@ -19,7 +21,9 @@ def token_required(func):
         token = auth_header.split(" ")[1]
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            uid = payload.get('user_id')
+            uid = payload.get('userid')
+            print("-----------------------")
+            print(uid)
             uid = uid.get('uid')
 
             if not uid:
@@ -29,9 +33,24 @@ def token_required(func):
             request.update_env(user=uid)
 
         except jwt.ExpiredSignatureError:
-            return {"status": "error", "message": "Token has expired"}
+            return http.Response(
+                        response=json.dumps({
+                            'status': 'error',
+                            'message': 'Token has Expired'
+                        }),
+                        status=400,
+                        content_type='application/json'
+                    )
+
         except jwt.InvalidTokenError:
-            return {"status": "error", "message": "Invalid token"}
+            return http.Response(
+                        response=json.dumps({
+                            'status': 'error',
+                            'message': 'Token is Invalid'
+                        }),
+                        status=400,
+                        content_type='application/json'
+                    )
 
         return func(*args, **kwargs)
 
