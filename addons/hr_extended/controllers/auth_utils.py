@@ -21,8 +21,6 @@ def token_required(func):
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             uid = payload.get('user_id')
             uid = uid.get('uid')
-            print("-------------------------------")
-            print(uid)
 
             if not uid:
                 return {"status": "error", "message": "Invalid token payload: user_id missing"}
